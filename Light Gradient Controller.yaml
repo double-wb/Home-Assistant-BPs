@@ -1,0 +1,354 @@
+blueprint:
+  name: "Light Gradient Controller (3 to 10 Bulbs) 26.06.03"
+  description: "Creates directional gradients across multiple bulbs."
+  domain: automation
+  input:
+    warmup_delay:
+      name: Initial Warm-up Delay
+      description: "How long (in seconds) to wait before reading the trigger bulbs' states. Allows attributes to settle when triggered simultaneously by scenes/voice."
+      default: 0.25
+      selector:
+        number:
+          min: 0
+          max: 2
+          step: 0.05
+          unit_of_measurement: "s"
+          mode: slider
+    transition_time:
+      name: Bulb Transition Time
+      description: "How long (in seconds) the bulbs locally fade their color/brightness."
+      default: 2
+      selector:
+        number:
+          min: 0
+          max: 10
+          step: 0.5
+          unit_of_measurement: "s"
+          mode: slider
+    between_delay:
+      name: Cascade Delay (Between Bulbs)
+      description: "The stagger time (in seconds) between each middle bulb updating. E.g., 0.1 for a fast wipe, 0.5 for a slow crawl. This can help reduce traffic storms."
+      default: 0.1
+      selector:
+        number:
+          min: 0
+          max: 2
+          step: 0.05
+          unit_of_measurement: "s"
+          mode: slider
+    cooldown_delay:
+      name: Anti-Storm Cooldown Delay
+      description: "How long (in seconds) to block the automation from re-triggering. This can help reduce traffic storms."
+      default: 0.25
+      selector:
+        number:
+          min: 0
+          max: 1
+          step: 0.1
+          unit_of_measurement: "s"
+          mode: slider
+    top_bulb:
+      name: "Top/first Bulb (Required)"
+      description: The bulb at the absolute top.
+      selector:
+        entity:
+          domain: light
+    bottom_bulb:
+      name: "Bottom/last Bulb (Required)"
+      description: The bulb at the absolute bottom.
+      selector:
+        entity:
+          domain: light
+    mid_1:
+      name: Middle Bulb 1
+      description: "The 2nd bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_2:
+      name: Middle Bulb 2
+      description: "The 3rd bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_3:
+      name: Middle Bulb 3
+      description: "The 4th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_4:
+      name: Middle Bulb 4
+      description: "The 5th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_5:
+      name: Middle Bulb 5
+      description: "The 6th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_6:
+      name: Middle Bulb 6
+      description: "The 7th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_7:
+      name: Middle Bulb 7
+      description: "The 8th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+    mid_8:
+      name: Middle Bulb 8
+      description: "The 9th bulb from the top."
+      default: ""
+      selector:
+        entity:
+          domain: light
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id: !input top_bulb
+  - platform: state
+    entity_id: !input bottom_bulb
+  - platform: state
+    entity_id: !input top_bulb
+    attribute: rgb_color
+  - platform: state
+    entity_id: !input bottom_bulb
+    attribute: rgb_color
+  - platform: state
+    entity_id: !input top_bulb
+    attribute: brightness
+  - platform: state
+    entity_id: !input bottom_bulb
+    attribute: brightness
+  - platform: state
+    entity_id: !input top_bulb
+    attribute: color_temp_kelvin
+  - platform: state
+    entity_id: !input bottom_bulb
+    attribute: color_temp_kelvin
+  - platform: state
+    entity_id: !input top_bulb
+    attribute: color_temp
+  - platform: state
+    entity_id: !input bottom_bulb
+    attribute: color_temp
+
+action:
+  - variables:
+      warmup_delay: !input warmup_delay
+
+  - delay:
+      seconds: "{{ warmup_delay | float }}"
+
+  - variables:
+      transition_time: !input transition_time
+      between_delay: !input between_delay
+      cooldown_delay: !input cooldown_delay
+      top_entity: !input top_bulb
+      bot_entity: !input bottom_bulb
+
+      is_bottom_trigger: "{{ trigger is defined and trigger.entity_id is defined and trigger.entity_id == bot_entity }}"
+
+      raw_mids:
+        - !input mid_1
+        - !input mid_2
+        - !input mid_3
+        - !input mid_4
+        - !input mid_5
+        - !input mid_6
+        - !input mid_7
+        - !input mid_8
+
+      middle_bulbs: >
+        {{ raw_mids | reject('none') | reject('eq', '') | list }}
+
+      M: "{{ middle_bulbs | length }}"
+      N: "{{ M + 2 }}"
+
+      top_rgb: "{{ state_attr(top_entity, 'rgb_color') | default([255,255,255], true) }}"
+      bot_rgb: "{{ state_attr(bot_entity, 'rgb_color') | default([255,255,255], true) }}"
+
+      top_kelvin: "{{ state_attr(top_entity, 'color_temp_kelvin') | default(2700, true) }}"
+      bot_kelvin: "{{ state_attr(bot_entity, 'color_temp_kelvin') | default(2700, true) }}"
+
+      top_bri: "{{ state_attr(top_entity, 'brightness') | default(255, true) }}"
+      bot_bri: "{{ state_attr(bot_entity, 'brightness') | default(255, true) }}"
+
+  - choose:
+      # SCENARIO 1: BOTH ON (Standard Gradient)
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(top_entity, 'on') and is_state(bot_entity, 'on') }}"
+        sequence:
+          - repeat:
+              count: "{{ M }}"
+              sequence:
+                - variables:
+                    i: >-
+                      {% if is_bottom_trigger %}
+                        {{ M - repeat.index }}
+                      {% else %}
+                        {{ repeat.index - 1 }}
+                      {% endif %}
+                    pos: >-
+                      {% if is_bottom_trigger %}
+                        {{ M - repeat.index + 1 }}
+                      {% else %}
+                        {{ repeat.index }}
+                      {% endif %}
+                    bot_ratio: "{{ pos / (N - 1) }}"
+                    top_ratio: "{{ 1.0 - bot_ratio }}"
+                    current_entity: "{{ middle_bulbs[i] }}"
+
+                - choose:
+                    - conditions:
+                        - condition: template
+                          # Requires BOTH to be color_temp when both are on
+                          value_template: "{{ state_attr(top_entity, 'color_mode') == 'color_temp' and state_attr(bot_entity, 'color_mode') == 'color_temp' }}"
+                      sequence:
+                        - action: light.turn_on
+                          target:
+                            entity_id: "{{ current_entity }}"
+                          data:
+                            color_temp_kelvin: "{{ (top_kelvin * top_ratio + bot_kelvin * bot_ratio) | round }}"
+                            brightness: "{{ [(top_bri * top_ratio + bot_bri * bot_ratio) | round, 1] | max }}"
+                            transition: "{{ transition_time }}"
+                  default:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ current_entity }}"
+                      data:
+                        rgb_color:
+                          - "{{ (top_rgb[0] * top_ratio + bot_rgb[0] * bot_ratio) | round }}"
+                          - "{{ (top_rgb[1] * top_ratio + bot_rgb[1] * bot_ratio) | round }}"
+                          - "{{ (top_rgb[2] * top_ratio + bot_rgb[2] * bot_ratio) | round }}"
+                        brightness: "{{ [(top_bri * top_ratio + bot_bri * bot_ratio) | round, 1] | max }}"
+                        transition: "{{ transition_time }}"
+                - delay:
+                    seconds: "{{ between_delay | float }}"
+
+      # SCENARIO 2: TOP ON, BOTTOM OFF
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(top_entity, 'on') and is_state(bot_entity, 'off') }}"
+        sequence:
+          - variables:
+              bot_bri: 0
+              bot_rgb: "{{ top_rgb }}"
+              bot_kelvin: "{{ top_kelvin }}"
+          - repeat:
+              count: "{{ M }}"
+              sequence:
+                - variables:
+                    i: >-
+                      {% if is_bottom_trigger %} {{ M - repeat.index }} {% else %} {{ repeat.index - 1 }} {% endif %}
+                    pos: >-
+                      {% if is_bottom_trigger %} {{ M - repeat.index + 1 }} {% else %} {{ repeat.index }} {% endif %}
+                    bot_ratio: "{{ pos / (N - 1) }}"
+                    top_ratio: "{{ 1.0 - bot_ratio }}"
+                    current_entity: "{{ middle_bulbs[i] }}"
+                - choose:
+                    - conditions:
+                        - condition: template
+                          # Only checks the Top bulb's mode
+                          value_template: "{{ state_attr(top_entity, 'color_mode') == 'color_temp' }}"
+                      sequence:
+                        - action: light.turn_on
+                          target:
+                            entity_id: "{{ current_entity }}"
+                          data:
+                            color_temp_kelvin: "{{ (top_kelvin * top_ratio + bot_kelvin * bot_ratio) | round }}"
+                            brightness: "{{ [(top_bri * top_ratio + bot_bri * bot_ratio) | round, 1] | max }}"
+                            transition: "{{ transition_time }}"
+                  default:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ current_entity }}"
+                      data:
+                        rgb_color: "{{ top_rgb }}"
+                        brightness: "{{ [(top_bri * top_ratio) | round, 1] | max }}"
+                        transition: "{{ transition_time }}"
+                - delay:
+                    seconds: "{{ between_delay | float }}"
+
+      # SCENARIO 3: TOP OFF, BOTTOM ON
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(top_entity, 'off') and is_state(bot_entity, 'on') }}"
+        sequence:
+          - variables:
+              top_bri: 0
+              top_rgb: "{{ bot_rgb }}"
+              top_kelvin: "{{ bot_kelvin }}"
+          - repeat:
+              count: "{{ M }}"
+              sequence:
+                - variables:
+                    i: >-
+                      {% if is_bottom_trigger %} {{ M - repeat.index }} {% else %} {{ repeat.index - 1 }} {% endif %}
+                    pos: >-
+                      {% if is_bottom_trigger %} {{ M - repeat.index + 1 }} {% else %} {{ repeat.index }} {% endif %}
+                    bot_ratio: "{{ pos / (N - 1) }}"
+                    top_ratio: "{{ 1.0 - bot_ratio }}"
+                    current_entity: "{{ middle_bulbs[i] }}"
+                - choose:
+                    - conditions:
+                        - condition: template
+                          # Only checks the Bottom bulb's mode
+                          value_template: "{{ state_attr(bot_entity, 'color_mode') == 'color_temp' }}"
+                      sequence:
+                        - action: light.turn_on
+                          target:
+                            entity_id: "{{ current_entity }}"
+                          data:
+                            color_temp_kelvin: "{{ (top_kelvin * top_ratio + bot_kelvin * bot_ratio) | round }}"
+                            brightness: "{{ [(top_bri * top_ratio + bot_bri * bot_ratio) | round, 1] | max }}"
+                            transition: "{{ transition_time }}"
+                  default:
+                    - action: light.turn_on
+                      target:
+                        entity_id: "{{ current_entity }}"
+                      data:
+                        rgb_color: "{{ bot_rgb }}"
+                        brightness: "{{ [(bot_bri * bot_ratio) | round, 1] | max }}"
+                        transition: "{{ transition_time }}"
+                - delay:
+                    seconds: "{{ between_delay | float }}"
+
+      # SCENARIO 4: BOTH OFF
+      - conditions:
+          - condition: template
+            value_template: "{{ is_state(top_entity, 'off') and is_state(bot_entity, 'off') }}"
+        sequence:
+          - repeat:
+              count: "{{ M }}"
+              sequence:
+                - variables:
+                    i: >-
+                      {% if is_bottom_trigger %} {{ M - repeat.index }} {% else %} {{ repeat.index - 1 }} {% endif %}
+                    current_entity: "{{ middle_bulbs[i] }}"
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ current_entity }}"
+                  data:
+                    transition: "{{ transition_time }}"
+                - delay:
+                    seconds: "{{ between_delay | float }}"
+
+  - delay:
+      seconds: "{{ cooldown_delay | float }}"
