@@ -1,6 +1,6 @@
 blueprint:
-  name: "Light Gradient Controller (3 to 10 Bulbs) 26.06.03"
-  description: "Creates directional gradients across multiple bulbs."
+  name: "Light Gradient Controller (from 3 to 10 Bulbs)"
+  description: "Creates directional gradients across multiple bulbs. Last updated 26.06.03"
   domain: automation
   input:
     warmup_delay:
